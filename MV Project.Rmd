@@ -1,0 +1,355 @@
+---
+title: "MV Project Team 7"
+author: "Team 7"
+date: "2020/3/18"
+output:
+  pdf_document: default
+---
+
+```{r Packages}
+library(caret)
+library(leaps)
+library(dplyr)
+library(bestglm)
+library(glmulti)
+library(sjPlot)
+library(sjmisc)
+library(ggplot2)
+library(corrplot)
+```
+
+```{r Visualizations}
+# read data csv
+setwd("E:/W6400 MV/project")
+churn <- read.csv("Churn_Modelling.csv")
+# 3 variables not in use
+churn <- subset(churn, select = -c(RowNumber, CustomerId, Surname))
+churn$Exited <- as.factor(churn$Exited)
+
+# distribution plot
+# Personal information variables
+churn$Geography <- as.factor(churn$Geography)
+ggplot(data=churn, aes(x=Geography)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+summary(churn$Geography)
+ggplot(churn, aes(x = Geography)) +
+  geom_bar(aes(color = Exited, fill = Exited), position = "stack", alpha = 0.4)+
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+summary(churn[churn$Geography=='France',]$Exited)
+summary(churn[churn$Geography=='Germany',]$Exited)
+summary(churn[churn$Geography=='Spain',]$Exited)
+
+churn$Gender <- as.factor(churn$Gender)
+#ggplot(data=churn, aes(x=Gender)) +
+#  geom_bar() +
+#  geom_text(stat='count', aes(label=..count..), vjust=-1)
+summary(churn$Gender)
+ggplot(churn, aes(x = Gender)) +
+  geom_bar(aes(color = Exited, fill = Exited), position = "stack", alpha = 0.4)+
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+summary(churn[churn$Gender=='Male',]$Exited)
+summary(churn[churn$Gender=='Female',]$Exited)
+
+#hist(churn$Age,col="blue")
+summary(churn$Age)
+ggplot(churn,aes(x=Age))+
+  geom_histogram(bins=15,aes(color = Exited, fill = Exited), position = "stack", alpha = 0.4)+
+  stat_bin(bins=15,aes(y=..count.., label=..count..), geom="text", vjust=-1) 
+
+# Banking information variables
+#hist(churn$CreditScore,col="blue")
+summary(churn$CreditScore)
+ggplot(churn, aes(x = CreditScore)) +
+  geom_histogram(bins=15,aes(color = Exited, fill = Exited), position = "stack", alpha = 0.4)+
+  stat_bin(bins=15,aes(y=..count.., label=..count..), geom="text", vjust=-1) 
+
+
+#hist(churn$Tenure,col="blue")
+summary(churn$Tenure)
+ggplot(churn, aes(x = Tenure)) +
+  geom_histogram(bins=10,aes(color = Exited, fill = Exited), position = "stack", alpha = 0.4)+
+  stat_bin(bins=10,aes(y=..count.., label=..count..), geom="text", vjust=-1) 
+
+
+#hist(churn$Balance,col="grey")
+summary(churn$Balance)
+summary(churn[churn$Balance==0,]$Exited)
+summary(churn[churn$Balance>0,]$Exited)
+ggplot(churn, aes(x = Balance)) +
+  geom_histogram(bins=15,aes(color = Exited, fill = Exited), position = "stack", alpha = 0.4)+
+  stat_bin(bins=15,aes(y=..count.., label=..count..), geom="text", vjust=-1) 
+
+
+#hist(churn$NumOfProducts,col="blue")
+summary(churn$NumOfProducts)
+ggplot(churn, aes(x = NumOfProducts)) +
+  geom_bar(aes(color = Exited, fill = Exited), position = "stack", alpha = 0.4)+
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+summary(churn[churn$NumOfProducts==3,]$Exited)
+summary(churn[churn$NumOfProducts==4,]$Exited)
+
+#hist(churn$HasCrCard,col="blue")
+summary(churn$HasCrCard)
+churn$HasCrCard <- as.factor(churn$HasCrCard)
+ggplot(churn, aes(x = HasCrCard)) +
+  geom_bar(aes(color = Exited, fill = Exited), position = "stack", alpha = 0.4)+
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+summary(churn[churn$HasCrCard==0,]$Exited)
+summary(churn[churn$HasCrCard==1,]$Exited)
+
+
+#hist(churn$IsActiveMember,col="blue")
+summary(churn$IsActiveMember)
+churn$IsActiveMember <- as.factor(churn$IsActiveMember)
+ggplot(churn, aes(x = IsActiveMember)) +
+  geom_bar(aes(color = Exited, fill = Exited), position = "stack", alpha = 0.4)+
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+summary(churn[churn$IsActiveMember==0,]$Exited)
+summary(churn[churn$IsActiveMember==1,]$Exited)
+
+
+#hist(churn$EstimatedSalary,col="blue")
+summary(churn$EstimatedSalary)
+salary.outlier <- churn[churn$EstimatedSalary<500,]
+salary.outlier
+nrow(salary.outlier)
+ggplot(churn, aes(x = EstimatedSalary)) +
+  geom_histogram(bins=15,aes(color = Exited, fill = Exited), position = "stack", alpha = 0.4)+
+  stat_bin(bins=15,aes(y=..count.., label=..count..), geom="text", vjust=-1) 
+
+
+#plot(churn$Exited,col="blue")
+summary(churn$Exited)
+ggplot(churn, aes(x = Exited)) +
+  geom_bar(aes(color = Exited, fill = Exited), position = "stack", alpha = 0.4)+
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+```
+
+
+```{r All subset regression}
+setwd("E:/W6400 MV/project")
+churn <- read.csv("Churn_Modelling.csv")
+churn <- subset(churn, select = -c(RowNumber, CustomerId, Surname))
+# churn <- fastDummies::dummy_cols(churn)
+
+# correlation analysis on numeric variables
+excl_cor <- names(churn) %in% c('Geography','Gender')
+cor_df <- churn[!excl_cor]
+pearsoncorr<-cor(cor_df, use = "complete.obs") #default->pearson
+res <- cor(cor_df)
+round(res, 4)
+
+# visualize correlation matrix
+# library(corrplot)
+par(mfrow =c(1,1))
+corrplot(pearsoncorr, type= "lower", method="square", tl.srt=40)
+```
+
+```{r}
+churn$age_group <- cut(churn$Age, breaks = c(17, 25, 40, 60, 1000),
+                       labels=c('college', 'young', 'mid', 'old'))
+churn$credit_group <- cut(churn$CreditScore, breaks = c(300, 560, 650, 700, 750, 850),
+                       labels=c('Very Bad', 'Bad', 'Fair', 'Good', 'Excellent'))
+churn$balance_group <- cut(churn$Balance, breaks = c(-1, 0, 100000, 150000, 300000),
+                          labels=c('None', 'Low', 'Mid', 'High'))
+churn$product_group <- cut(churn$NumOfProducts, breaks = c(0, 1, 2, 5),
+                          labels=c('1', '2', '3_and_over'))
+churn$salary_group <- cut(churn$EstimatedSalary, breaks = c(0, 30000, 70000, 100000, 150000, 200000),
+                          labels=c('Low', 'Medium_low', 'Medium', 'Medium_high', 'High'))
+
+churn2 <- subset(churn, select = -c(CreditScore, Age, Balance, NumOfProducts, EstimatedSalary))
+
+# churn2 <- subset(churn, select = c(age_group, credit_group, balance_group, Exited))
+churn.for.best.logistic <- within(churn2, {
+    y <- Exited
+    Exited <- NULL
+})
+names(churn.for.best.logistic)
+#table(churn.for.best.logistic$salary_group, churn.for.best.logistic$age_group)
+```
+
+
+```{r}
+# stepwise selection with all interactions
+init_glm <- glm(y ~ ., data = churn.for.best.logistic)
+stepwise <- step(init_glm, scope = . ~ .^2, direction = 'both')
+#par(mfrow =c(2,2))
+#plot(stepwise)
+summary(stepwise)
+```
+
+```{r Train test split}
+set.seed(123)
+inds = sample(1:nrow(churn.for.best.logistic), 0.80 * nrow(churn.for.best.logistic))
+train_churn <- churn.for.best.logistic[inds,]
+test_churn <- churn.for.best.logistic[-inds,]
+```
+
+```{r}
+inter1 <- glm(y ~ balance_group*product_group, data = train_churn)
+summary(inter1)
+plot_model(inter1, type = "int")
+```
+
+```{r Without interaction}
+glm1 <- glm(y ~ Geography + Gender + Tenure + HasCrCard + IsActiveMember + 
+    age_group + balance_group + product_group, data = train_churn, family = binomial)
+summary(glm1)
+```
+
+```{r}
+preds1 <- predict(glm1, newdata = test_churn, type = 'response')
+preds1_encode <- ifelse(preds1 >=  0.5, 1, 0)
+sum(preds1_encode == test_churn$y)
+sum(preds1_encode == test_churn$y) / nrow(test_churn)
+table(Predicted=preds1_encode, Actual=test_churn$y) #confusion matrix
+```
+
+
+```{r Logistic regression with interaction}
+glm2 <- glm(y ~ Geography + Gender + Tenure + HasCrCard + IsActiveMember + 
+    age_group + balance_group + product_group + IsActiveMember:age_group + 
+    age_group:product_group + Geography:balance_group + balance_group:product_group + 
+    Geography:product_group + IsActiveMember:product_group + 
+    Geography:age_group + Gender:age_group + HasCrCard:balance_group + 
+    Geography:Tenure, data = train_churn, family = binomial)
+summary(glm2)
+```
+
+```{r}
+preds2 <- predict(glm2, newdata = test_churn, type = 'response')
+preds2_encode <- ifelse(preds2 >=  0.5, 1, 0)
+sum(preds2_encode == test_churn$y)
+sum(preds2_encode == test_churn$y) / nrow(test_churn)
+table(Predicted=preds2_encode, Actual=test_churn$y) # confusion matrix
+```
+
+###################################################################################################################
+
+```{r glmulti}
+# All-subset logistic glmulti
+glmulti.logistic.out <-
+  glmulti(y ~ ., data = churn.for.best.logistic,
+          level = 2,               # Interaction considered
+          method = "h",            # Exhaustive approach
+          crit = "aic",            # AIC as criteria
+          confsetsize = 5,         # Keep 5 best models
+          plotty = F, report = F,  # No plot or interim reports
+          fitfunction = "glm",     # glm function
+          family = binomial)       # binomial family for logistic regression
+
+glmulti.logistic.out@formulas
+summary(glmulti.logistic.out@objects[[1]])
+```
+
+
+```{r Two-way ANOVA}
+# Two-way ANOVA
+names(churn)
+summary(aov(Exited ~ Gender*age_group, data = churn))
+```
+
+
+```{r Best logistic}
+churn.best.logistic <-
+    bestglm(Xy = churn.for.best.logistic,
+            family = binomial,
+            IC = "AIC",
+            method = "exhaustive")
+churn.best.logistic$BestModels
+```
+
+```{r Best model summary}
+summary(churn.best.logistic$BestModel)
+```
+
+The features in our logistic model are:\
+Geography, Gender, Tenure, IsActiveMember, age_group, credit_group, balance_group, product_group
+
+
+```{r Dataset processing}
+setwd("E:/W6400 MV/project")
+churn <- read.csv("Churn_Modelling.csv")
+churn <- subset(churn, select = -c(RowNumber, CustomerId, Surname))
+
+churn$age_group <- cut(churn$Age, breaks = c(17, 25, 40, 60, 1000),
+                       labels=c('college', 'young', 'mid', 'old'))
+churn$credit_group <- cut(churn$CreditScore, breaks = c(300, 560, 650, 700, 750, 850),
+                       labels=c('Very Bad', 'Bad', 'Fair', 'Good', 'Excellent'))
+churn$balance_group <- cut(churn$Balance, breaks = c(-1, 0, 100000, 150000, 300000),
+                          labels=c('None', 'Low', 'Mid', 'High'))
+churn$product_group <- cut(churn$NumOfProducts, breaks = c(0, 1, 2, 5),
+                          labels=c('1', '2', '3_and_over'))
+churn1 <- fastDummies::dummy_cols(churn)
+
+churn_clean <- subset(churn1, select = -c(HasCrCard, CreditScore, Geography, Gender, Age, Balance, NumOfProducts, EstimatedSalary, age_group, credit_group, balance_group, product_group))
+names(churn_clean)
+```
+
+```{r Two-way ANOVA}
+names(churn)
+summary(aov(Exited ~ Gender + age_group, data = churn))
+```
+
+
+```{r Train test split}
+set.seed(123)
+inds = sample(1:nrow(churn_clean), 0.80 * nrow(churn_clean))
+train_churn <- churn_clean[inds,]
+test_churn <- churn_clean[-inds,]
+```
+
+
+```{r Logistic regression}
+glm1 <- glm(Exited ~ ., data = train_churn, family = binomial)
+summary(glm1)
+```
+
+```{r Logistic predictions}
+preds1 <- predict(glm1, newdata = test_churn, type = 'response')
+preds1_encode <- ifelse(preds1 >=  0.5, 1, 0)
+sum(preds1_encode == test_churn$Exited)
+sum(preds1_encode == test_churn$Exited) / nrow(test_churn)
+table(Predicted=preds1_encode, Actual=test_churn$Exited) #confusion matrix
+```
+
+
+```{r Logistic regression}
+glm2 <- glm(Exited ~ .
+            + IsActiveMember*age_group_mid
+            + IsActiveMember*age_group_young
+            + IsActiveMember*age_group_college
+            + IsActiveMember*product_group_1
+            + Geography_France*age_group_mid
+            + Geography_France*balance_group_Low
+            + Geography_France*balance_group_High
+            + Geography_Spain*product_group_1
+            + age_group_mid*balance_group_None
+            + age_group_mid*product_group_1
+            + age_group_mid*product_group_3_and_over
+            + age_group_young*balance_group_None
+            + age_group_young*product_group_3_and_over
+            , data = train_churn, family = binomial)
+preds2 <- predict(glm2, newdata = test_churn, type = 'response')
+preds2_encode <- ifelse(preds2 >=  0.5, 1, 0)
+sum(preds2_encode == test_churn$Exited)
+sum(preds2_encode == test_churn$Exited) / nrow(test_churn)
+table(Predicted=preds2_encode, Actual=test_churn$Exited) #confusion matrix
+```
+
+```{r}
+inter_all <- glm(Exited ~ (.)^2, data = train_churn)
+summary(inter_all)
+```
+
+
+
+```{r}
+inter1 <- glm(Exited ~ Geography_Spain*product_group_1, data = train_churn)
+summary(inter1)
+plot_model(inter1, type = "int")
+```
+
+
+
